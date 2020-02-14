@@ -9,38 +9,35 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.Sprite;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
-import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
-import com.badlogic.gdx.math.Polygon;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.math.Vector3;
-import com.badlogic.gdx.physics.box2d.BodyDef;
-import com.badlogic.gdx.physics.box2d.Contact;
-import com.badlogic.gdx.physics.box2d.ContactImpulse;
-import com.badlogic.gdx.physics.box2d.ContactListener;
-import com.badlogic.gdx.physics.box2d.Fixture;
-import com.badlogic.gdx.physics.box2d.Manifold;
-import com.badlogic.gdx.physics.box2d.PolygonShape;
 import com.badlogic.gdx.physics.box2d.World;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.TimeUtils;
+import com.drop.game.model.AttackArea;
+import com.drop.game.model.MyRectangle;
+import com.drop.game.model.Tower;
+import com.drop.game.routes.RouteFirstLvl;
 
 import java.util.Iterator;
 
 public class MyDropGame extends ApplicationAdapter {
     OrthographicCamera camera;
 
-    World world;
-
     SpriteBatch batch;
     ShapeRenderer shapeRenderer;
 
     Texture playingField;
     Texture dropImage;
+    Texture test;
 
     Texture bucketImage;
+
+    private Sprite mapSprite;
 
     Sound dropSound;
     Music rainMusic;
@@ -48,19 +45,44 @@ public class MyDropGame extends ApplicationAdapter {
 
     Vector3 touchPos;
     Array<MyRectangle> enemies;
+    Array<Tower> towers;
+
     long lastEnemyAppearanceTime;
+
+    private int radius = 50;
+
+    private float w;
+    private float h;
 
     @Override
     public void create() {
-        camera = new OrthographicCamera();
-        camera.setToOrtho(false, 800, 480);
+//        float wi= Gdx.graphics.getWidth()/Gdx.graphics.getHeight()/480;
+//        System.out.println("WI = " + wi);
+//        camera.setToOrtho(false, wi, 480);
 
-        createWorld();
+         w = Gdx.graphics.getWidth();
+         h = Gdx.graphics.getHeight();
+
+
+        mapSprite = new Sprite(new Texture(Gdx.files.internal("level_1.png")));
+        mapSprite.setPosition(0, 0);
+        mapSprite.setSize(w, h * (h/w));
+
+
+        System.out.println("w = " + w);
+        System.out.println("h = " + h);
+
+        camera = new OrthographicCamera(w, h * (h / w));
+        camera.position.set(camera.viewportWidth / 2f, camera.viewportHeight / 2f, 0);
+        camera.update();
 
         batch = new SpriteBatch();
-        dropImage = new Texture("ic_drop.png");
+        dropImage = new Texture("luntik.png");
         bucketImage = new Texture("ic_bucket.png");
         playingField = new Texture("level_1.png");
+
+
+        test = new Texture("test.png");
 
 
         dropSound = Gdx.audio.newSound(Gdx.files.internal("drop.mp3"));
@@ -70,6 +92,7 @@ public class MyDropGame extends ApplicationAdapter {
         rainMusic.play();
 
         shapeRenderer = new ShapeRenderer();
+        shapeRenderer.setColor(new Color(0f, 0f, 1f, 0.2f));
 
         bucket = new Rectangle();
         bucket.x = 800 / 2 - 64 / 2;
@@ -80,77 +103,66 @@ public class MyDropGame extends ApplicationAdapter {
         touchPos = new Vector3();
 
         enemies = new Array<>();
+        towers = new Array<>();
         spawnEnemy();
     }
 
-    private void createWorld(){
-        world = new World(new Vector2(0, -10f), true);
-        world.setContactListener(new MyContactListener());
-    }
-
     private void spawnEnemy() {
-        PolygonShape boxShape = new PolygonShape();
-        boxShape.setAsBox(dropImage.getWidth(), dropImage.getHeight());
-        MyBodyDef boxBodyDef = new MyBodyDef(new Route(0,0));
-
-
         MyRectangle enemy = new MyRectangle();
-        enemy.setRoute(new Route(0,0));
-        enemy.x = 0;
-//        enemy.y = MathUtils.random(0, 480);
-        enemy.y = 50;
+        enemy.setRoute(new RouteFirstLvl());
         enemy.width = dropImage.getWidth();
         enemy.height = dropImage.getHeight();
-        enemy.setRotation(0f);
         enemies.add(enemy);
         lastEnemyAppearanceTime = TimeUtils.nanoTime();
     }
 
+    private void addTower(float x, float y) {
+        Tower tower = new Tower(x, y);
+        towers.add(tower);
+    }
+
+    @Override
+    public void resize(int width, int height) {
+        camera.viewportWidth = w;
+        camera.viewportHeight = h * height/width;
+        camera.update();
+    }
+
     @Override
     public void render() {
-
         Gdx.gl.glClearColor(0, 0, 0.2f, 1);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
-
 
         camera.update();
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
-        batch.draw(playingField, 0,0);
+        mapSprite.draw(batch);
+
+//        batch.draw(playingField, 0, 0);
         batch.draw(bucketImage, bucket.x, bucket.y);
 
         for (MyRectangle enemy : enemies) {
-//            batch.draw(dropImage, enemy.x, enemy.y);
-            batch.draw(dropImage,
-                    enemy.x,
-                    enemy.y,
-                    dropImage.getWidth()/2,
-                    dropImage.getHeight()/2,
-                    dropImage.getWidth(),
-                    dropImage.getHeight(),
-                    1f, 1f,
-                    enemy.getRotation(),
-                    0, 0,
-                    dropImage.getWidth(),
-                    dropImage.getHeight(),
-                    false, false);
+            batch.draw(dropImage, enemy.x, enemy.y);
         }
-
         batch.end();
 
         Gdx.gl.glEnable(GL20.GL_BLEND);
         Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
-        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        shapeRenderer.setColor(new Color(0f, 0f, 1f, 0.5f));
 
-        shapeRenderer.circle(100, 100, 50);
-        shapeRenderer.end();
-
-        if (Gdx.input.isTouched()) {
-            touchPos.set(Gdx.input.getX(), Gdx.input.getY(), 0);
-            camera.unproject(touchPos);
-            bucket.x = (int) (touchPos.x - 64 / 2);
+        for (Tower tower : towers) {
+            shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+            shapeRenderer.circle(tower.getAttackArea().getX(),
+                    tower.getAttackArea().getY(),
+                    tower.getAttackArea().getAttackRadius());
+            //todo пока рисуем область, потом будет тавер и если нажать на тавер, то надо будет рисовать область обстрела
+            shapeRenderer.end();
         }
+
+//        if (Gdx.input.isTouched()) {
+//            touchPos.set(Gdx.input.getX(), Gdx.input.getY(), 0);
+//            camera.unproject(touchPos);
+//            bucket.x = (int) (touchPos.x - 64 / 2);
+//        }
 
         checkKeyPressed();
         checkBucketPos();
@@ -158,12 +170,20 @@ public class MyDropGame extends ApplicationAdapter {
         moveEnemy();
     }
 
+
     private void checkKeyPressed() {
         if (Gdx.input.isKeyPressed(Input.Keys.LEFT)) bucket.x -= 300 * Gdx.graphics.getDeltaTime();
         if (Gdx.input.isKeyPressed(Input.Keys.RIGHT)) bucket.x += 300 * Gdx.graphics.getDeltaTime();
         if (Gdx.input.isKeyPressed(Input.Keys.UP)) bucket.y += 300 * Gdx.graphics.getDeltaTime();
         if (Gdx.input.isKeyPressed(Input.Keys.DOWN)) bucket.y -= 300 * Gdx.graphics.getDeltaTime();
         if (Gdx.input.isKeyPressed(Input.Keys.SPACE)) bucket.y -= 300 * Gdx.graphics.getDeltaTime();
+
+        if (Gdx.input.isTouched()) {
+
+            touchPos.set(Gdx.input.getX(), Gdx.input.getY(), 0);
+            camera.unproject(touchPos);
+            addTower(touchPos.x, touchPos.y);
+        }
     }
 
     private void checkBucketPos() {
@@ -179,7 +199,6 @@ public class MyDropGame extends ApplicationAdapter {
         }
     }
 
-
     private void moveEnemy() {
         Iterator<MyRectangle> iter = enemies.iterator();
         while (iter.hasNext()) {
@@ -188,41 +207,29 @@ public class MyDropGame extends ApplicationAdapter {
             enemy.x = enemy.getRoute().x;
             enemy.y = enemy.getRoute().y;
             enemy.getRoute().update();
-            enemy.setRotation(enemy.getRotation() + 2);
             if (enemy.x > 800) iter.remove();
-            if(enemy.overlaps(bucket)){
+            if (enemy.overlaps(bucket)) {
                 dropSound.play();
                 iter.remove();
+            }
+
+            if (!towers.isEmpty()) {
+                Tower tower = towers.get(0);
+
+                Vector2 vectorShape = new Vector2(tower.getX(), tower.getY());
+                Vector2 vectorEnemy = enemy.getCenter(new Vector2());
+
+                System.out.println("Distance: " + distance(vectorShape, vectorEnemy));
+                if (distance(vectorShape, vectorEnemy) < radius) {
+                    dropSound.play();
+                    iter.remove();
+                }
             }
         }
     }
 
-    private void createCollisionListener() {
-        world.setContactListener(new ContactListener() {
-
-            @Override
-            public void beginContact(Contact contact) {
-                Fixture fixtureA = contact.getFixtureA();
-                Fixture fixtureB = contact.getFixtureB();
-                Gdx.app.log("beginContact", "between " + fixtureA.toString() + " and " + fixtureB.toString());
-            }
-
-            @Override
-            public void endContact(Contact contact) {
-                Fixture fixtureA = contact.getFixtureA();
-                Fixture fixtureB = contact.getFixtureB();
-                Gdx.app.log("endContact", "between " + fixtureA.toString() + " and " + fixtureB.toString());
-            }
-
-            @Override
-            public void preSolve(Contact contact, Manifold oldManifold) {
-            }
-
-            @Override
-            public void postSolve(Contact contact, ContactImpulse impulse) {
-            }
-
-        });
+    private double distance(Vector2 object1, Vector2 object2) {
+        return Math.sqrt(Math.pow((object2.x - object1.x), 2) + Math.pow((object2.y - object1.y), 2));
     }
 
     @Override
@@ -233,7 +240,4 @@ public class MyDropGame extends ApplicationAdapter {
         dropSound.dispose();
         rainMusic.dispose();
     }
-
-
-
 }
